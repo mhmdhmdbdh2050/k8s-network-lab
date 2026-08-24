@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+
+metadata:
+  name: client-cross-node
+  labels:
+    app: cross-node-client
+
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: k8s-network-lab-m02
+
+  containers:
+    - name: client
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - sleep 3600

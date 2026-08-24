@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+
+metadata:
+  name: server-cross-node
+  labels:
+    app: cross-node-server
+
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: k8s-network-lab-m03
+
+  containers:
+    - name: nginx-server
+      image: nginx:alpine
+      ports:
+        - containerPort: 80

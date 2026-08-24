@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: server-same-node
+  labels:
+    app: same-node-server
+
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: k8s-network-lab-m02
+
+  containers:
+    - name: nginx-server
+      image: nginx:alpine
+      ports:
+        - containerPort: 80
