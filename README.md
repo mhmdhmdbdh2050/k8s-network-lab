@@ -5,7 +5,7 @@
 ### **A Hands-On Multi-Node Kubernetes Networking Project**
 
 <p>
-  <img src="https://img.shields.io/badge/Kubernetes-v1.35.1-326CE5?logo=kubernetes&logoColor=white" alt="Kubernetes">
+  <img src="https://img.shields.io/badge/Kubernetes-Multi--Node-326CE5?logo=kubernetes&logoColor=white" alt="Kubernetes multi-node lab">
   <img src="https://img.shields.io/badge/Minikube-Multi--Node-326CE5?logo=kubernetes&logoColor=white" alt="Minikube">
   <img src="https://img.shields.io/badge/CNI-kindnet-success?logo=linux&logoColor=white" alt="kindnet">
   <img src="https://img.shields.io/badge/Container_Runtime-Docker-2496ED?logo=docker&logoColor=white" alt="Docker">
@@ -62,7 +62,19 @@ The lab compares two important Kubernetes networking scenarios:
 
 # 🏗️ Cluster Architecture
 
-The project uses a **Minikube multi-node Kubernetes cluster**.
+The project uses a **three-node Minikube cluster** with the Docker driver and `kindnet` CNI. Create a profile with the name expected by the manifests, then apply the four standalone Pods:
+
+```bash
+minikube start --driver=docker --nodes=3 --profile=k8s-network-lab --cni=kindnet
+kubectl config use-context k8s-network-lab
+kubectl get nodes -o wide
+kubectl apply -f manifests/same-node/
+kubectl apply -f manifests/cross-node/
+kubectl wait --for=condition=Ready pod --all --timeout=180s
+kubectl get pods -o wide
+```
+
+The selectors expect worker nodes named `k8s-network-lab-m02` and `k8s-network-lab-m03`. If your Minikube version or profile produces different names, check `kubectl get nodes` and update the selectors in `manifests/` before applying. The Docker driver is needed for the `docker exec` node-inspection examples below. This lab observes basic Pod routing; it does not test NetworkPolicy enforcement.
 
 ```mermaid
 flowchart TB
@@ -83,7 +95,9 @@ flowchart TB
 
 # 🧩 Network Information
 
-## 🖥️ Node IP Addresses
+The IP addresses and route/interface output in this README are examples captured from one run. Kubernetes assigns Pod IPs dynamically, and node IPs can differ by driver, host, and Minikube profile. Use the commands below to discover the current values before testing.
+
+## 🖥️ Example Node IP Addresses
 
 | Node | Role | IP Address |
 |---|---|---|
@@ -91,7 +105,7 @@ flowchart TB
 | `k8s-network-lab-m02` | Worker Node 1 | `192.168.58.3` |
 | `k8s-network-lab-m03` | Worker Node 2 | `192.168.58.4` |
 
-## 📦 Pod Network
+## 📦 Example Pod Network
 
 | Network | CIDR |
 |---|---|
@@ -99,7 +113,7 @@ flowchart TB
 | Worker Node 1 Pod Network | `10.244.1.0/24` |
 | Worker Node 2 Pod Network | `10.244.2.0/24` |
 
-## 🚀 Pods Used in the Lab
+## 🚀 Example Pod Placement and Addresses
 
 | Pod | Pod IP | Node | Scenario |
 |---|---|---|---|
@@ -152,7 +166,8 @@ server-same-node
 ### 🧪 Connectivity Test
 
 ```bash
-kubectl exec -it client-same-node -- ping -c 4 10.244.1.2
+SERVER_IP="$(kubectl get pod server-same-node -o jsonpath='{.status.podIP}')"
+kubectl exec client-same-node -- ping -c 4 "$SERVER_IP"
 ```
 
 ### ✅ Result
@@ -211,7 +226,11 @@ flowchart LR
 ### 🧪 Connectivity Test
 
 ```bash
-kubectl exec -it client-cross-node -- ping -c 4 10.244.2.2
+SERVER_IP="$(kubectl get pod server-cross-node -o jsonpath='{.status.podIP}')"
+kubectl exec client-cross-node -- ping -c 4 "$SERVER_IP"
+
+# Verify the Nginx server responds over HTTP as well.
+kubectl exec client-cross-node -- wget -qO- "http://${SERVER_IP}/"
 ```
 
 ### 🚀 Result
@@ -227,6 +246,8 @@ kubectl exec -it client-cross-node -- ping -c 4 10.244.2.2
 # 🛣️ Routing Analysis
 
 One of the main goals of this project was to inspect how the worker nodes route traffic to remote Pod networks.
+
+The route shown below is an example from one Docker-driver cluster. Inspect the current route table rather than expecting the same node IP or interface name.
 
 ## On Worker Node 1 (`m02`)
 
@@ -405,36 +426,6 @@ k8s-network-lab/
 │       ├── 📄 client-cross-node.yaml
 │       └── 📄 server-cross-node.yaml
 │
-└── 📁 scripts/
-```
-
----
-
-# 🖼️ Adding the Architecture Image
-
-The architecture image should be placed inside the following directory:
-
-```text
-docs/architecture.png
-```
-
-The README displays it using:
-
-```html
-<img src="docs/architecture.png"
-     alt="Kubernetes Pod Networking Lab Architecture"
-     width="100%">
-```
-
-This means the final GitHub repository structure should look like:
-
-```text
-k8s-network-lab/
-├── README.md
-├── docs/
-│   └── architecture.png
-├── manifests/
-└── scripts/
 ```
 
 ---
@@ -492,6 +483,18 @@ docker exec k8s-network-lab-m02 ip addr
 ```bash
 docker exec k8s-network-lab-m03 ip addr
 ```
+
+### Remove the lab
+
+Delete the Pods and then remove the dedicated Minikube profile:
+
+```bash
+kubectl delete -f manifests/same-node/
+kubectl delete -f manifests/cross-node/
+minikube delete --profile=k8s-network-lab
+```
+
+`minikube delete` removes the entire named local cluster and its workloads. Do not use that profile name if it contains work you want to keep.
 
 ---
 
